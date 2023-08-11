@@ -4,6 +4,19 @@
 #define MYPORT_TX 19
 #define MYPORT_RX 22
 
+#define CVR_DOOYA
+//#define CVR_WISER
+
+
+#ifdef CVR_DOOYA
+#define SET_COMMAND_LENGTH 8
+#define STOP_COMMAND_LENGTH 7
+#endif
+
+#ifdef CVR_WISER
+#define SET_COMMAND_LENGTH 7
+#define STOP_COMMAND_LENGTH 7
+#endif
 
 class PLMCover : public PollingComponent, public Cover {
  public:
@@ -11,6 +24,7 @@ class PLMCover : public PollingComponent, public Cover {
 
   void setup() override {
 
+  #ifdef CVR_DOOYA
     cmd_set[0] = 0x55;
     cmd_set[1] = 0x01;
     cmd_set[2] = 0x00; //ID
@@ -37,6 +51,36 @@ class PLMCover : public PollingComponent, public Cover {
     cmd_stop[5] = 0x00; //CRC LOW
     cmd_stop[6] = 0x00; //CRC HIGH
     cmd_stop[7] = 0x00;
+  #endif
+
+  #ifdef CVR_WISER
+    cmd_set[0] = 0x00; //AL
+    cmd_set[1] = 0x04; //AH
+    cmd_set[2] = 0x02; //Command Write
+    cmd_set[3] = 0x01; //precentage
+    cmd_set[4] = 0x04; //precentage value
+    cmd_set[5] = 0x00; //CRC LOW
+    cmd_set[6] = 0x00; //CRC HIGH
+    cmd_set[7] = 0x00;
+
+    cmd_get[0] = 0x00;
+    cmd_get[1] = 0x00;
+    cmd_get[2] = 0x00;
+    cmd_get[3] = 0x00;
+    cmd_get[4] = 0x00;
+    cmd_get[5] = 0x00;
+    cmd_get[6] = 0x00;
+    cmd_get[7] = 0x00;
+
+    cmd_stop[0] = 0x00; //AL
+    cmd_stop[1] = 0x04; //AH
+    cmd_stop[2] = 0x02; //Command Write
+    cmd_stop[3] = 0x02; //Stop
+    cmd_stop[4] = 0x00; //
+    cmd_stop[5] = 0x00; //CRC LOW
+    cmd_stop[6] = 0x00; //CRC HIGH
+    cmd_stop[7] = 0x00;
+  #endif
 
     RS485.begin(9600, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false);
   }
@@ -81,12 +125,12 @@ class PLMCover : public PollingComponent, public Cover {
       int pos = (*call.get_position())*100;
       ESP_LOGI("Cover", "C%d Position %d", _id, pos);
       cmd_set[5] = pos;
-      hwControl(cmd_set, 8);
+      hwControl(cmd_set, SET_COMMAND_LENGTH);
       update_status(pos);
     }
     if (call.get_stop()) {
       ESP_LOGI("Cover", "C%d Stop", _id);
-      hwControl(cmd_stop, 7);
+      hwControl(cmd_stop, STOP_COMMAND_LENGTH);
     }
   }
   void update_status(int pos) {
