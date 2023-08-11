@@ -11,11 +11,15 @@
 #ifdef CVR_DOOYA
 #define SET_COMMAND_LENGTH 8
 #define STOP_COMMAND_LENGTH 7
+#define ID_INDEX 2
+#define PV_INDEX 5
 #endif
 
 #ifdef CVR_WISER
 #define SET_COMMAND_LENGTH 7
 #define STOP_COMMAND_LENGTH 7
+#define ID_INDEX 0
+#define PV_INDEX 4
 #endif
 
 class PLMCover : public PollingComponent, public Cover {
@@ -85,7 +89,7 @@ class PLMCover : public PollingComponent, public Cover {
     RS485.begin(9600, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false);
   }
   int hwControl(unsigned char *d, int len) {
-    d[2] = _id;
+    d[ID_INDEX] = _id;
     crc16(d, len-2);
     ESP_LOGI("Cover", "%02X %02X %02X %02X %02X %02X %02X %02X", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
     while(len--) {
@@ -124,7 +128,7 @@ class PLMCover : public PollingComponent, public Cover {
     if (call.get_position().has_value()) {
       int pos = (*call.get_position())*100;
       ESP_LOGI("Cover", "C%d Position %d", _id, pos);
-      cmd_set[5] = pos;
+      cmd_set[PV_INDEX] = pos;
       hwControl(cmd_set, SET_COMMAND_LENGTH);
       update_status(pos);
     }
