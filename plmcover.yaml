@@ -1,7 +1,7 @@
 esphome:
   name: plmcovercontrol
   includes:
-    - plm_cover.h
+    - plmcover.h
   libraries:
     - EspSoftwareSerial
 esp32:
@@ -27,17 +27,15 @@ captive_portal:
 cover:
 - platform: custom
   lambda: |-
-    auto c0 = new PLMCover();
-    c0->setID(1);
+    auto rs485cover = new RS485Cover();
+    App.register_component(rs485cover);
+    auto c0 = new PLMCover(1, rs485cover);
     App.register_component(c0);
-    auto c1 = new PLMCover();
-    c1->setID(2);
+    auto c1 = new PLMCover(2, rs485cover);
     App.register_component(c1);
-    auto c2 = new PLMCover();
-    c2->setID(3);
+    auto c2 = new PLMCover(3, rs485cover);
     App.register_component(c2);
-    auto c3 = new PLMCover();
-    c3->setID(4);
+    auto c3 = new PLMCover(4, rs485cover);
     App.register_component(c3);
     return {c0,c1,c2,c3};
 

@@ -11,7 +11,7 @@ RS485 窗帘控制器
 硬件
 ----
 
-ESP32主控+RS485电平转换器，将plm_cover.h中的如下语句替换成你实际的串口接口
+ESP32主控+RS485电平转换器，将plmcover.h中的如下语句替换成你实际的串口接口
 
     #define MYPORT_TX 19
     #define MYPORT_RX 22
