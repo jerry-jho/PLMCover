@@ -27,7 +27,8 @@
 
 #define REC_BUFFER_SIZE 128
 
-static std::mutex serial_mtx;
+static std::mutex serial_mtx_write;
+static std::mutex serial_mtx_read;
 
 
 class CyclicBuffer {
@@ -106,7 +107,7 @@ class RS485Cover : public PollingComponent {
       cmd_stop[6] = 0x00; //CRC HIGH
       cmd_stop[7] = 0x00;
     #endif
-
+    buffer_ptr = 0;
     rec.begin(rec_mem, REC_BUFFER_SIZE);
     SSerial.begin(9600, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false);
   }
@@ -118,7 +119,36 @@ class RS485Cover : public PollingComponent {
     _hw(id, cmd_stop, STOP_COMMAND_LENGTH);
   }
   void update() override {
-
+    if (SSerial.available()) {
+      std::lock_guard<std::mutex> lck(serial_mtx_read);
+      while(SSerial.available()) {
+        unsigned char ch = SSerial.read();
+        rec[buffer_ptr] = ch;
+        buffer_ptr ++;
+      }
+    }
+  }
+  void querypos(int id) {
+    _hw(id, cmd_get, GET_COMMAND_LENGTH);
+  }
+  int readpos(int id) {
+    #ifdef CVR_DOOYA
+      do {
+        std::lock_guard<std::mutex> lck(serial_mtx_read);
+        int i = 0;
+        while (i<REC_BUFFER_SIZE) {
+          if (rec[i] == 0x55 && rec[i+1] == 0x01) {
+            int cap_id = rec[i+ID_INDEX];
+            if (cap_id == id && rec[i+3] == 0x01) {
+              rec[i+ID_INDEX] = 99;
+              return rec[i+5];
+            }
+          }
+          i++;
+        }
+      } while (0);
+    #endif
+    return -1;
   }
  private:
   int _hw(int id, unsigned char *d, int len) {
@@ -126,7 +156,7 @@ class RS485Cover : public PollingComponent {
     _crc16(d, len-2);
     int wlen = len;
     do {
-      std::lock_guard<std::mutex> lck(serial_mtx);
+      std::lock_guard<std::mutex> lck(serial_mtx_write);
       ESP_LOGI("RS485Cover WR", "%02X %02X %02X %02X %02X %02X %02X %02X", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
       while(wlen--) {
         SSerial.write((char)(*d));
@@ -155,8 +185,9 @@ class RS485Cover : public PollingComponent {
   unsigned char cmd_get[8];
   unsigned char cmd_stop[8];
   unsigned char rec_mem[REC_BUFFER_SIZE];
+  unsigned int buffer_ptr;
   CyclicBuffer rec;
-  EspSoftwareSerial::UART SSerial;  
+  EspSoftwareSerial::UART SSerial;
 };
 
 class PLMCover : public PollingComponent, public Cover {
@@ -167,6 +198,7 @@ class PLMCover : public PollingComponent, public Cover {
   }
   void setup() override {
     t_counter = 0;
+    last_pos = -1;
     _cover->setup();
   }
   CoverTraits get_traits() override {
@@ -183,6 +215,7 @@ class PLMCover : public PollingComponent, public Cover {
       int pos = (*call.get_position())*100;
       ESP_LOGI("Cover", "C%d Position %d", _id, pos);
       _cover->setpos(_id, pos);
+      t_counter = 0;
       update_status(pos);
     }
     if (call.get_stop()) {
@@ -195,51 +228,23 @@ class PLMCover : public PollingComponent, public Cover {
     this->publish_state();
   }
   void update() override {
-    // t_counter ++;
+    t_counter ++;
 
-    // if (t_counter == 30) {
-    //   t_counter = 0;
-    //   hwControl(cmd_get, GET_COMMAND_LENGTH);
-    // }
-    // do {
-    //   std::lock_guard<std::mutex> lck(serial_mtx);
-    //   if (RS485.available()) {
-    //     ESP_LOGI("Cover", "C%d Buffer %d", _id, RS485.available());
-    //     int i = 0;
-    //     while(RS485.available()) {
-    //       char ch = RS485.read();
-    //       rec[i] = ch;
-    //       i ++;
-    //     }
-    //     int count = i;
-    //     String ss = "";
-    //     char cc[4];
-    //     for (int j=0;j<count;j++) {
-    //       sprintf(cc, "%02X ", rec[j]);
-    //       ss += cc;
-    //     }
-    //     ESP_LOGI("Cover RS485 RD", ss.c_str());
-    //     #ifdef CVR_DOOYA
-    //       int j=0;
-    //       while(j<count) {
-    //         if (rec[j] = 0x55) {
-    //           int cap_id = rec[j+ID_INDEX];
-    //           if (cap_id == _id && rec[j+3] == 0x01) {
-    //             update_status(rec[j+5]);
-    //             break;
-    //           }
-    //         }
-    //         j++;
-    //       }
-    //     #endif
-    //   }
-    // } while (0);
-
+    if (t_counter == 60) {
+      t_counter = 0;
+      _cover->querypos(_id);
+      int pos = _cover->readpos(_id);
+      if (pos >= 0) {
+        ESP_LOGI("Cover", "C%d POS %d", _id, pos);
+        update_status(pos);
+      }
+    }
   }
 
  private:
   int _id;
   RS485Cover * _cover;
   int t_counter;
+  int last_pos;
   
 };

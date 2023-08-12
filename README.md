@@ -24,6 +24,7 @@ WiFi
     ssid: "你的SSID"
     password: "你的密码"
 
+务必在路由器上为它绑定IP地址，这是使用ESPHome设备共通的要求
 
 构建
 ----
